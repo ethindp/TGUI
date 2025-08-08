@@ -139,6 +139,8 @@ namespace tgui
             m_renderer = makeCopied<WidgetRenderer>();
             m_renderer->subscribe(this);
         }
+        m_accessibilityNode = accesskit_node_new(ACCESSKIT_ROLE_UNKNOWN); // Derived classes MUST override this!
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -694,6 +696,7 @@ namespace tgui
         m_autoLayout = layout;
         if (m_parent)
             m_parent->updateChildrenWithAutoLayout();
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -708,6 +711,7 @@ namespace tgui
     void Widget::setOrigin(Vector2f origin)
     {
         m_origin = origin;
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -716,6 +720,7 @@ namespace tgui
     {
         m_scaleFactors = scaleFactors;
         m_scaleOrigin.reset();
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -724,6 +729,7 @@ namespace tgui
     {
         m_scaleFactors = scaleFactors;
         m_scaleOrigin = origin;
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -742,6 +748,7 @@ namespace tgui
     {
         m_rotationDeg = angle;
         m_rotationOrigin.reset();
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -750,6 +757,7 @@ namespace tgui
     {
         m_rotationDeg = angle;
         m_rotationOrigin = origin;
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1032,6 +1040,7 @@ namespace tgui
         m_showAnimations.push_back(std::make_unique<priv::MoveAnimation>(shared_from_this(), getPosition(), position, duration,
             [this]{ onAnimationFinish.emit(this, AnimationType::Move); }
         ));
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1044,6 +1053,7 @@ namespace tgui
         m_showAnimations.push_back(std::make_unique<priv::ResizeAnimation>(shared_from_this(), getSize(), size, duration,
             [this]{ onAnimationFinish.emit(this, AnimationType::Resize); }
         ));
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1066,6 +1076,7 @@ namespace tgui
 
             rightMouseButtonNoLongerDown();
         }
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1084,6 +1095,7 @@ namespace tgui
         // Refresh widget opacity if there is a different value set for enabled and disabled widgets
         if (getSharedRenderer()->getOpacityDisabled() != -1)
             rendererChanged("OpacityDisabled");
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1111,6 +1123,7 @@ namespace tgui
             m_focused = false;
             onUnfocus.emit(this);
         }
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1133,6 +1146,7 @@ namespace tgui
     {
         if (m_parent)
             m_parent->moveWidgetToFront(shared_from_this());
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1141,6 +1155,7 @@ namespace tgui
     {
         if (m_parent)
             m_parent->moveWidgetToBack(shared_from_this());
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1149,6 +1164,7 @@ namespace tgui
     {
         m_inheritedFont = font;
         rendererChanged("Font");
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1164,6 +1180,7 @@ namespace tgui
     {
         m_inheritedOpacity = opacity;
         rendererChanged("Opacity");
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1185,6 +1202,7 @@ namespace tgui
             m_textSizeCached = m_textSize;
 
         updateTextSize();
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1199,6 +1217,7 @@ namespace tgui
     void Widget::setToolTip(Widget::Ptr toolTip)
     {
         m_toolTip = std::move(toolTip);
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1254,6 +1273,7 @@ namespace tgui
 
         if (m_mouseHover)
             m_parentGui->requestMouseCursor(cursor);
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1268,6 +1288,7 @@ namespace tgui
     void Widget::setFocusable(bool focusable)
     {
         m_focusable = focusable;
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1282,6 +1303,7 @@ namespace tgui
     void Widget::setNavigationUp(const Widget::Ptr& widgetAbove)
     {
         m_navWidgetUp = widgetAbove;
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1296,6 +1318,7 @@ namespace tgui
     void Widget::setNavigationDown(const Widget::Ptr& widgetBelow)
     {
         m_navWidgetDown = widgetBelow;
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1310,6 +1333,7 @@ namespace tgui
     void Widget::setNavigationLeft(const Widget::Ptr& widgetLeft)
     {
         m_navWidgetLeft = widgetLeft;
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1324,6 +1348,7 @@ namespace tgui
     void Widget::setNavigationRight(const Widget::Ptr& widgetRight)
     {
         m_navWidgetRight = widgetRight;
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1410,6 +1435,7 @@ namespace tgui
             m_size.x.connectWidget(this, true, [this]{ setSize(getSizeLayout()); });
             m_size.y.connectWidget(this, false, [this]{ setSize(getSizeLayout()); });
         }
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1435,6 +1461,7 @@ namespace tgui
     void Widget::setAutoLayoutUpdateEnabled(bool enabled)
     {
         m_autoLayoutUpdateEnabled = enabled;
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1992,6 +2019,27 @@ namespace tgui
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    void Widget::updateAccessibilityNode() {
+        const auto absolute_pos = getAbsolutePosition();
+        const auto size = getFullSize();
+        accesskit_rect rect;
+        rect.x0 = absolute_position.x;
+        rect.y0 = absolute_position.y;
+        rect.x1 = absolute_position.x + size.x;
+        rect.y1 = absolute_position.y + size.y;
+        accesskit_node_set_bounds(m_accessibilityNode, rect);
+        if (isEnabled()) accesskit_node_clear_disabled(m_accessibilityNode);
+        else accesskit_node_set_disabled(m_accessibilityNode);
+    }
+
+    accesskit_node_id getAccessibilityNodeId() {
+        return m_accessibilityNodeId;
+    }
+
+    accesskit_node* getAccessibilityNode() {
+        return m_accessibilityNode;
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
