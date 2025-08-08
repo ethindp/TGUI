@@ -29,6 +29,7 @@
 #include <TGUI/Backend/Window/BackendGui.hpp>
 #include <TGUI/Loading/WidgetFactory.hpp>
 #include <TGUI/SignalManager.hpp>
+#include <accesskit.h>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -155,6 +156,10 @@ namespace tgui
             layout->unbindWidget();
 
         SignalManager::getSignalManager()->remove(this);
+        if (m_accessibilityNode) {
+            accesskit_node_freee(m_accessibilityNode);
+            m_accessibilityNode = nullptr;
+        }
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -188,7 +193,9 @@ namespace tgui
         m_fontCached                   {other.m_fontCached},
         m_opacityCached                {other.m_opacityCached},
         m_transparentTextureCached     {other.m_transparentTextureCached},
-        m_textSizeCached               {other.m_textSizeCached}
+        m_textSizeCached               {other.m_textSizeCached},
+        m_accessibilityNode {other.m_accessibilityNode},
+        m_accessibilityNodeId {other.m_accessibilityNodeId}
     {
         m_position.x.connectWidget(this, true, [this]{ setPosition(getPositionLayout()); });
         m_position.y.connectWidget(this, false, [this]{ setPosition(getPositionLayout()); });
@@ -196,6 +203,7 @@ namespace tgui
         m_size.y.connectWidget(this, false, [this]{ setSize(getSizeLayout()); });
 
         m_renderer->subscribe(this);
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -246,7 +254,9 @@ namespace tgui
         m_fontCached                   {std::move(other.m_fontCached)},
         m_opacityCached                {std::move(other.m_opacityCached)},
         m_transparentTextureCached     {std::move(other.m_transparentTextureCached)},
-        m_textSizeCached               {std::move(other.m_textSizeCached)}
+        m_textSizeCached               {std::move(other.m_textSizeCached)},
+        m_accessibilityNode {std::move(m_accessibilityNode)},
+        m_accessibilityNodeId {std::move(m_accessibilityNodeId)}
     {
         m_position.x.connectWidget(this, true, [this]{ setPosition(getPositionLayout()); });
         m_position.y.connectWidget(this, false, [this]{ setPosition(getPositionLayout()); });
@@ -260,6 +270,7 @@ namespace tgui
 
         if (other.m_parent)
             other.m_parent->remove(other.shared_from_this());
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -321,6 +332,10 @@ namespace tgui
             m_opacityCached        = other.m_opacityCached;
             m_transparentTextureCached = other.m_transparentTextureCached;
             m_textSizeCached       = other.m_textSizeCached;
+            // Todo: figure out if this could potentially cause problems
+            if (m_accessibilityNode) accesskit_node_free(m_accessibilityNode);
+            m_accessibilityNode = other.m_accessibilityNode;
+            m_accessibilityNodeId = other.m_accessibilityNodeId;
 
             m_position.x.connectWidget(this, true, [this]{ setPosition(getPositionLayout()); });
             m_position.y.connectWidget(this, false, [this]{ setPosition(getPositionLayout()); });
@@ -328,6 +343,7 @@ namespace tgui
             m_size.y.connectWidget(this, false, [this]{ setSize(getSizeLayout()); });
 
             m_renderer->subscribe(this);
+            updateAccessibilityNode();
         }
 
         return *this;
@@ -389,6 +405,10 @@ namespace tgui
             m_opacityCached        = std::move(other.m_opacityCached);
             m_transparentTextureCached = std::move(other.m_transparentTextureCached);
             m_textSizeCached       = std::move(other.m_textSizeCached);
+            // Todo: figure out if this could potentially cause problems
+            if (m_accessibilityNode) accesskit_node_free(m_accessibilityNode);
+            m_accessibilityNode = std::move(other.m_accessibilityNode);
+            m_accessibilityNodeId = std::move(other.m_accessibilityNodeId);
 
             m_position.x.connectWidget(this, true, [this]{ setPosition(getPositionLayout()); });
             m_position.y.connectWidget(this, false, [this]{ setPosition(getPositionLayout()); });
@@ -400,6 +420,7 @@ namespace tgui
             if (other.m_parent)
                 SignalManager::getSignalManager()->remove(&other);
 
+        updateAccessibilityNode();
             enable_shared_from_this::operator=(std::move(other));
         }
 
@@ -538,6 +559,7 @@ namespace tgui
             rendererChanged(newIt->first);
             ++newIt;
         }
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -587,6 +609,7 @@ namespace tgui
             if ((m_autoLayout != AutoLayout::Manual) && m_autoLayoutUpdateEnabled && m_parent)
                 m_parent->updateChildrenWithAutoLayout();
         }
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -613,6 +636,7 @@ namespace tgui
             if ((m_autoLayout != AutoLayout::Manual) && m_autoLayoutUpdateEnabled && m_parent)
                 m_parent->updateChildrenWithAutoLayout();
         }
+        updateAccessibilityNode();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

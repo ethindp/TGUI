@@ -522,7 +522,8 @@ set_target_properties(tgui PROPERTIES EXPORT_NAME TGUI)
 # the code would be more complicated when using add_subdirectory. So we just avoid creating a new scope by using include.
 # TODO: We now require a newer CMake version, so we should be able to find a solution that uses add_subdirectory instead of include
 include(Backend/CMakeLists.txt)
-
+find_package(ACCESSKIT REQUIRED)
+target_link_libraries(tgui PUBLIC accesskit)
 # Define either TGUI_STATIC or TGUI_DYNAMIC
 if(TGUI_SHARED_LIBS)
     # The TGUI_DYNAMIC define is practically never needed. It would only be required in a project that dynamically
